@@ -4,13 +4,11 @@
 // Licensed under a Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license, http://creativecommons.org/licenses/by-sa/4.0.
 //include <MCAD/involute_gears.scad> 
 
-
 // TODO:
 // modularise whole thing
 // get rid of globals
-// knob
-// dedup minkowski code ring2D,ring2DS/gear2D,gear2DS
-// per layer depth ratio or auto-calculate maximum
+// per layer depth ratio or auto-calculate maximum based on interference
+// check fudge factor for s<1
 
 // Which one would you like to see?
 part = "core"; // [core:Core]
@@ -66,17 +64,10 @@ rtn = dt+2*pt;
 s=[for(i=[0:modules-1])rtn[i]/rt[i]];
 // scale helix angle to mesh
 ha=[for(i=[0:modules-1])atan(PI*nt[i]*cp[i]/90/gh[i])];
-has=[for(i=[0:modules-1])atan(PI*nt[i]*s[i]*cp[i]/90/gh[i])];
 
 // Shaft diameter
 shaft_d_ = 0; //[0:0.1:25]
 shaft_d = scl*shaft_d_;
-// Spring outer diameter
-//spring_d_ = 5; //[0:0.1:25]
-//spring_d = scl*spring_d_;
-// False gate depth
-//fg_ = 1; //[0:0.1:5]
-//fg = scl*fg_;
 
 // secondary shafts (for larger sun gears)
 shafts = 6; //[0:1:12]
@@ -124,7 +115,6 @@ TopNutCapture = 0;				//[1:Yes , 0:No]
 //Include a nut capture at the base
 BaseNutCapture = 0/1;				// [1:Yes , 0:No]
 
-
 // Curve resolution settings, minimum angle
 $fa = 5/1;
 // Curve resolution settings, minimum size
@@ -169,17 +159,10 @@ TT=AT/2;
 
 core_h=addl(gh,modules);
 
-//r=1*scl+outer_d/2-4*tol;
-//h=core_h2;
-//d=h/4;
-
 // overhang test
 if(g==undef&&part=="test"){
-    //gear2DS(dt[0],cp[0]*PI/180,P,depth_ratio,tol,gh[1]);
-    
-    //gear2DS(pt[0],cp[0]*PI/180,P,depth_ratio,tol,gh[1]);
-    ring2DS(rt[0],s[0]*cp[0]*PI/180,P,depth_ratio,depth_ratio2,-tol,gh[1],outer_d/2);
-
+    //gear2D(pt[0],cp[0]*PI/180,P,depth_ratio,tol,gh[1]);
+    ring2D(rt[0],s[0]*cp[0]*PI/180,P,depth_ratio,depth_ratio2,-tol,gh[1],outer_d/2);
 }
 
 // Ring gears
@@ -188,25 +171,20 @@ if(g==1||g==undef&&part=="core"){
         // positive volume
         for (i=[0:modules-1])translate([0,0,addl(gh,i)]){
             // ring body
-            //translate([0,0,i>0&&(pt[i-1]-rt[i-1])/pt[i-1]!=(pt[i]-rt[i])/pt[i]?layer_h:0])
             difference(){
                 cylinder(r=outer_d/2,h=gh[i]);
                 cylinder(r=outer_d/2-wall/2,h=gh[i]);
             }
             intersection(){
-                //cylinder(r=outer_d/2,h=gh[i]);
-                //cube(outer_d);
-                extrudegear(t1=rt[i],gear_h=gh[i],tol=-tol,helix_angle=ha[i],cp=cp[i],AT=ST) // has[i]?
-                    ring2D(rt[i],s[i]*cp[i]*PI/180,s[i]*s[i]*P,depth_ratio,depth_ratio2/s[i]/s[i],-tol,outer_d/2-wall/2+tol); // depth_ratio2,P fudged to account for tooth scaling
+                extrudegear(t1=rt[i],gear_h=gh[i],tol=-tol,helix_angle=ha[i],cp=cp[i],AT=ST)
+                    ring2D(rt[i],s[i]*cp[i]*PI/180,(2*s[i]-1)*P,depth_ratio,depth_ratio2/(2*s[i]-1),-tol,0,outer_d/2-wall/2+tol); // depth_ratio2,P fudged to account for tooth scaling - more applicable to s[i]>1?
                 // cutout overhanging teeth at angle
                 if(i>0&&rt[i-1]!=rt[i])rotate([0,0,-180/rt[i-1]*2*nt[i-1]])translate([0,0,layer_h])
-                    ring2DS(rt[i-1],s[i-1]*cp[i-1]*PI/180,s[i-1]*s[i-1]*P,depth_ratio,depth_ratio2/s[i-1]/s[i-1],-tol,gh[i],outer_d/2-wall/2+tol);
+                    ring2D(rt[i-1],s[i-1]*cp[i-1]*PI/180,(2*s[i-1]-1)*P,depth_ratio,depth_ratio2/(2*s[i-1]-1),-tol,gh[i],outer_d/2-wall/2+tol);
             }
         }
         // negative volume
         for (i=[0:modules-1])translate([0,0,addl(gh,i)]){
-            // temporary section
-            //cube(outer_d);
             // bearing surface
             if(i>0&&(pt[i-1]-rt[i-1])/pt[i-1]!=(pt[i]-rt[i])/pt[i])
                 rotate_extrude()translate([0,(i%2?0:layer_h),0])mirror([0,i%2?1:0,0])
@@ -217,80 +195,32 @@ if(g==1||g==undef&&part=="core"){
             if(ChamferGearsBottom<1&&i==0)translate([0,0,-TT])
                 linear_extrude(height=(rt[i]*s[i]*cp[i]/360)/sqrt(3),scale=0,slices=1)
                     if(ChamferGearsTop>0)
-                        hull()gear2D(rt[i],s[i]*cp[i]*PI/180,P,depth_ratio,depth_ratio2,-tol);
+                        hull()gear2D(rt[i],s[i]*cp[i]*PI/180,P,depth_ratio,depth_ratio2,-tol,0);
                     else
                         circle($fn=rt[i]*2,r=rt[i]*s[i]*cp[i]/360);
             // chamfer top gear
             if(ChamferGearsTop<1&&i==modules-1)translate([0,0,gh[i]+TT])mirror([0,0,1])
                 linear_extrude(height=(rt[i]*s[i]*cp[i]/360)/sqrt(3),scale=0,slices=1)
                     if(ChamferGearsTop>0)
-                        hull()gear2D(rt[i],s[i]*cp[i]*PI/180,P,depth_ratio,depth_ratio2,-tol);
+                        hull()gear2D(rt[i],s[i]*cp[i]*PI/180,P,depth_ratio,depth_ratio2,-tol,0);
                     else
                         circle($fn=rt[i]*2,r=rt[i]*s[i]*cp[i]/360);
         }
     }
 }
 
-// Knob
-// by Hank Cowdog
-// 2 Feb 2015
-//
-// based on FastRyan's
-// Tension knob 
-// Thingiverse Thing http://www.thingiverse.com/thing:27502/ 
-// which was downloaded on 2 Feb 2015 
-//
-// GNU General Public License, version 2
-// http://www.gnu.org/licenses/gpl-2.0.html
-//
-//This program is free software; you can redistribute it and/or
-//modify it under the terms of the GNU General Public License
-//as published by the Free Software Foundation; either version 2
-//of the License, or (at your option) any later version.
-//
-//This program is distributed in the hope that it will be useful,
-//but WITHOUT ANY WARRANTY; without even the implied warranty of
-//MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//GNU General Public License for more details.
-//
-//
-// 
-//
-//
-//
-// Finger points are the points on a star knob.
-// Finger holes are the notches between each point.
-// Larger values make for deeper holes.
-// Too many/too deep and you may reduce knob size too much.
-// If $TaperFingerPoints is true, the edges will be eased a little, making 
-// for a nicer knob to hold/use. 
-//
-
-//Ratio of stem to total height smaller makes for less of a stem under the knob:
-//StemHeightPercent =30.0/100.0;			// [0.3:0.8]
-
-// The shaft is for a thru-hole.  Easing the shaft by a small percentage makes for
-// easier insertion and makes allowance for ooze on 3D filament printers 
-
+// Knob by Hank Cowdog 2 Feb 2015, somewhat modified
 //Diameter of the shaft thru-bolt, in mm 
 ShaftDiameter = shaft_d;
-
 ShaftEasingPercentage = 0/100.0;  // 10% is plenty
-
 NutFlatWidth = 1.75 * ShaftDiameter;
 NutHeight =     0.87 * ShaftDiameter;
 SineOfSixtyDegrees = 0.86602540378/1.0;
-
 NutPointWidth = NutFlatWidth /SineOfSixtyDegrees;
-
-//StemDiameter= KnobDiameter/2.0;
-//StemHeight = KnobTotalHeight  * StemHeightPercent;
-
 EasedShaftDiameter = ShaftDiameter * (1.0+ShaftEasingPercentage);
-
 // center gears and knob
 if(g==2||g==undef&&part=="core"){
-    if(Knob)translate([0,0,addl(gh,modules)])
+    if(Knob)translate([0,0,core_h])
         rotate([0,0,180/dt[modules-1]*(1+2*nt[modules-1]-pt[modules-1]%2)])intersection(){
             translate([0,0,KnobTotalHeight])mirror([0,0,1])difference(){
                 // The whole knob
@@ -332,21 +262,21 @@ if(g==2||g==undef&&part=="core"){
                 }
             }
             // Transition knob to gear. Cutout overhanging teeth at angle
-            gear2DS(dt[modules-1],cp[modules-1]*PI/180,P,depth_ratio2,depth_ratio,tol,KnobTotalHeight);
+            gear2D(dt[modules-1],cp[modules-1]*PI/180,P,depth_ratio2,depth_ratio,tol,KnobTotalHeight);
     }
     for (i = [0:modules-1]){
         // the gear itself
         translate([0,0,addl(gh,i)])intersection(){
-            rotate([0,0,180/dt[i]*(1-pt[i]%2)])
-                extrudegear(t1=dt[i],reverse=true,bore=0,cp=cp[i],helix_angle=ha[i],gear_h=gh[i],rot=180/dt[i]*(1-pt[i]%2))
-                    gear2D(dt[i],cp[i]*PI/180,P,depth_ratio2,depth_ratio,tol);
+            rotate([0,0,180/dt[i]*(1-pt[i]%2)])mirror([0,1,0])
+                extrudegear(t1=dt[i],bore=0,cp=cp[i],helix_angle=ha[i],gear_h=gh[i],rot=180/dt[i]*(1-pt[i]%2))
+                    gear2D(dt[i],cp[i]*PI/180,P,depth_ratio2,depth_ratio,tol,0);
             // chamfer bottom gear
             if(ChamferGearsBottom<1&&i==0)rotate(90/pt[i])translate([0,0,-TT])
                 linear_extrude(height=gh[i]+AT,scale=1+gh[i]/(dt[i]*cp[i]/360)*sqrt(3),slices=1)
                     circle($fn=dt[i]*2,r=dt[i]*cp[i]/360-ChamferGearsBottom*min(cp[i]/(2*tan(P))+tol,depth_ratio2*cp[i]*PI/180+tol));
             // cutout overhanging teeth at angle
             if(i>0&&dt[i-1]!=dt[i])rotate([0,0,180/dt[i-1]*(1+2*nt[i-1]-pt[i-1]%2)])
-                gear2DS(dt[i-1],cp[i-1]*PI/180,P,depth_ratio2,depth_ratio,tol,gh[i]);
+                gear2D(dt[i-1],cp[i-1]*PI/180,P,depth_ratio2,depth_ratio,tol,gh[i]);
             
             // chamfer top gear
             if(!Knob&&ChamferGearsTop<1&&i==modules-1)translate([0,0,gh[i]+TT])rotate(90/dt[i])mirror([0,0,1])
@@ -364,14 +294,14 @@ if(g>2||g==undef&&part=="core"){
                 intersection(){
                     // the gear itself
                     extrudegear(t1=pt[i],bore=0,cp=cp[i],helix_angle=ha[i],gear_h=gh[i])
-                        gear2D(pt[i],cp[i]*PI/180,P,depth_ratio,depth_ratio2,tol);
+                        gear2D(pt[i],cp[i]*PI/180,P,depth_ratio,depth_ratio2,tol,0);
                     // chamfer bottom gear
                     if(ChamferGearsBottom<1&&i==0)rotate(90/pt[i])translate([0,0,-TT])
                         linear_extrude(height=gh[i]+AT,scale=1+gh[i]/(pt[i]*cp[i]/360)*sqrt(3),slices=1)
                             circle($fn=pt[i]*2,r=pt[i]*cp[i]/360-ChamferGearsBottom*min(cp[i]/(2*tan(P))+tol,depth_ratio*cp[i]*PI/180+tol));                
                     // cutout overhanging teeth at angle
                     if(i>0&&pt[i-1]!=pt[i])rotate([0,0,180/pt[i-1]*(-2*nt[i-1])])
-                        gear2DS(pt[i-1],cp[i-1]*PI/180,P,depth_ratio,depth_ratio2,tol,gh[i]);
+                        gear2D(pt[i-1],cp[i-1]*PI/180,P,depth_ratio,depth_ratio2,tol,gh[i]);
                     // chamfer top gear
                     if(ChamferGearsTop<1&&i==modules-1)translate([0,0,gh[i]+TT])rotate(90/pt[i])mirror([0,0,1])
                         linear_extrude(height=gh[i]+ST,scale=1+gh[i]/(pt[i]*cp[i]/360)*sqrt(3),slices=1)
@@ -380,61 +310,29 @@ if(g>2||g==undef&&part=="core"){
             }
         }
         if(pt[0]*cp[0]/360-ChamferGearsTop*min(cp[0]/(2*tan(P))+tol) > shaft_d)
-            translate([0,0,-TT])cylinder(d=shaft_d,h=addl(gh,modules)+AT);
+            translate([0,0,-TT])cylinder(d=shaft_d,h=core_h+AT);
     }
 }
 
 // test overhang removal
 if(g==undef&&part=="3D"){
-    //gear2DS(dt[0],cp[0]*PI/180,P,depth_ratio2,depth_ratio,tol,gh[1]);
-    ring2DS(rt[0],s[0]*cp[0]*PI/180,P,depth_ratio,depth_ratio2,-tol,gh[1],outer_d/2-wall/2);
+    //gear2D(dt[0],cp[0]*PI/180,P,depth_ratio2,depth_ratio,tol,gh[1]);
+    ring2D(rt[0],s[0]*cp[0]*PI/180,P,depth_ratio,depth_ratio2,-tol,gh[1],outer_d/2-wall/2);
 }
 
 // test overhang removal
 if(g==undef&&part=="2D"){
-    //gear2D(dt[0],cp[0]*PI/180,P,depth_ratio2,depth_ratio,tol);
-    //ring2D(rt[0],s[0]*cp[0]*PI/180,P,depth_ratio,depth_ratio2,-tol,outer_d/2-wall/2);
-    
-    //extrudegear(t1=rt[0],gear_h=gh[0],tol=-tol,helix_angle=has[0],cp=cp[0],AT=ST)
-    //ring2D(rt[0],s[0]*cp[0]*PI/180,P,depth_ratio,depth_ratio2,-tol,outer_d/2-wall/2);
-    
     for(i=[0:1])translate([0,i*(outer_d+tol),0]){
         planets(t1=pt[i], t2=dt[i],offset=(dt[i]+pt[i])*cp[i]/360,n=planets,t=rt[i]+dt[i])
-            gear2D(pt[i],cp[i]*PI/180,P,depth_ratio,depth_ratio2,tol);
-        ring2D(rt[i],s[i]*cp[i]*PI/180,s[i]*s[i]*P,depth_ratio,depth_ratio2/s[i]/s[i],-tol,outer_d/2-wall/2+tol); // depth_ratio2,P fudged to account for tooth scaling
+            gear2D(pt[i],cp[i]*PI/180,P,depth_ratio,depth_ratio2,tol,0);
+        ring2D(rt[i],s[i]*cp[i]*PI/180,(2*s[i]-1)*P,depth_ratio,depth_ratio2/(2*s[i]-1),-tol,0,outer_d/2-wall/2+tol); // depth_ratio2,P fudged to account for tooth scaling
         rotate([0,0,180/dt[i]*(1-pt[i]%2)])
-            gear2D(dt[i],cp[i]*PI/180,P,depth_ratio2,depth_ratio,tol);
-    }
-}
-
-// reversible herringbone gear with bore hole
-module planetgear(t1=13,reverse=false,bore=0,rot=0)
-{
-    difference()
-    {
-        translate([0,0,gear_h/2])
-        if (reverse) {
-            mirror([0,1,0])
-                herringbone(t1,PI*cp/180,P,depth_ratio2,depth_ratio,tol,helix_angle,gear_h,AT=AT);
-        } else {
-            herringbone(t1,PI*cp/180,P,depth_ratio,depth_ratio2,tol,helix_angle,gear_h,AT=AT);
-        }
-        
-        translate([0,0,-TT]){
-            rotate([0,0,-rot])
-                cylinder(d=bore, h=2*gear_h+AT);
-            // Extra speed holes, for strength
-            if(shafts>0 && bore>0 && bore/4+(t1-2*tan(P))*cp/720>bore)
-                for(i = [0:360/shafts:360-360/shafts])rotate([0,0,i-rot])
-                    translate([bore/4+(t1-2*tan(P))*cp/720,0,-AT])
-                        cylinder(d=bore,h=2*gear_h+AT);
-        }
+            gear2D(dt[i],cp[i]*PI/180,P,depth_ratio2,depth_ratio,tol,0);
     }
 }
 
 // Space out planet gears approximately equally
-module planets()
-{
+module planets(){
     for(i = [0:n-1])if(g==undef||i==g-3)
     rotate([0,0,round(i*t/n)*360/t])
         translate([offset,0,0]) rotate([0,0,round(i*t/n)*360/t*t2/t1])
@@ -450,35 +348,21 @@ module seg(z=10){
 }
 
 // half-tooth overhang volume
-module overhang(number_of_teeth,height){
-    intersection(){
-        minkowski(){
-            linear_extrude(AT)children();
-            //intersection(){
-                cylinder(r1=0,r2=height*1.75,h=height,$fn=12); // 60 degree overhang
-                //rotate([0,0,-180/number_of_teeth])
-                    //translate([-height,0,0])cube(2*height); // segments overlap
-            //}
-        }
-        //if(number_of_teeth>1)
-            //translate([0,-10*height,0])cube(10*height); // mirrored overlap
-    }
+module overhang(height=0){
+    if(height>0)minkowski(){
+        linear_extrude(AT)children();
+        cylinder(r1=0,r2=height*1.75,h=height,$fn=12); // 60 degree overhang
+    } else children();
 }
 
 // reversible herringbone gear
-module extrudegear(t1=13,reverse=false,bore=0,rot=0,helix_angle=0,gear_h=10,cp=10){
+module extrudegear(t1=13,bore=0,rot=0,helix_angle=0,gear_h=10,cp=10){
     translate([0,0,gear_h/2])
-    if (reverse) {
-        mirror([0,1,0])
-            herringbone(t1,PI*cp/180,P,tol,helix_angle,gear_h,AT=AT)
-                children();
-    } else {
         herringbone(t1,PI*cp/180,P,tol,helix_angle,gear_h,AT=AT)
             children();
-    }
 }
 
-module mir() {
+module mir(){
     children();
     mirror([0,0,1])children();
 }
@@ -505,7 +389,8 @@ module gear2D (
 	pressure_angle,
 	depth_ratio,
 	depth_ratio2,
-	clearance){
+	clearance,
+    height=0){
 pitch_radius = number_of_teeth*circular_pitch/(2*PI);
 base_radius = pitch_radius*cos(pressure_angle);
 depth=circular_pitch/(2*tan(pressure_angle));
@@ -518,10 +403,8 @@ pitch_point = involute (base_radius, involute_intersect_angle (base_radius, pitc
 pitch_angle = atan2 (pitch_point[1], pitch_point[0]);
 min_radius = max (base_radius,root_radius);
 
-seg(number_of_teeth)intersection(){
-	//rotate(180/number_of_teeth)
-    //mirror([1,1,0])
-		circle($fn=number_of_teeth*6,r=pitch_radius+depth_ratio*circular_pitch/2-clearance/2);
+seg(number_of_teeth)overhang(height)intersection(){
+	circle($fn=number_of_teeth*6,r=pitch_radius+depth_ratio*circular_pitch/2-clearance/2);
 	union(){
         intersection(){
             rotate(90/number_of_teeth)
@@ -540,49 +423,7 @@ seg(number_of_teeth)intersection(){
 	}
 }
 
-// volume supported above gear for removing overhang
-module gear2DS (
-	number_of_teeth,
-	circular_pitch,
-	pressure_angle,
-	depth_ratio,
-	depth_ratio2,
-	clearance,
-    height){
-pitch_radius = number_of_teeth*circular_pitch/(2*PI);
-base_radius = pitch_radius*cos(pressure_angle);
-depth=circular_pitch/(2*tan(pressure_angle));
-outer_radius = clearance<0 ? pitch_radius+depth/2-clearance : pitch_radius+depth/2;
-root_radius1 = pitch_radius-depth/2-clearance/2;
-root_radius = (clearance<0 && root_radius1<base_radius) ? base_radius : root_radius1;
-backlash_angle = clearance/(pitch_radius*cos(pressure_angle)) * 180 / PI;
-half_thick_angle = 90/number_of_teeth - backlash_angle/2;
-pitch_point = involute (base_radius, involute_intersect_angle (base_radius, pitch_radius));
-pitch_angle = atan2 (pitch_point[1], pitch_point[0]);
-min_radius = max (base_radius,root_radius);
-
-seg(number_of_teeth)overhang(number_of_teeth,height)intersection(){
-	//rotate(90/number_of_teeth)
-		circle($fn=number_of_teeth*6,r=pitch_radius+depth_ratio*circular_pitch/2-clearance/2);
-	union(){
-        intersection(){
-            rotate(90/number_of_teeth)
-                circle($fn=number_of_teeth*6,r=max(root_radius,pitch_radius-depth_ratio2*circular_pitch/2-clearance/2));
-            mirror([0,1,0])square(max(root_radius,pitch_radius-depth_ratio2*circular_pitch/2-clearance/2));
-            translate([0,-AT,0])rotate(-180/number_of_teeth)translate([0,-AT,0])
-                square(max(root_radius,pitch_radius-depth_ratio2*circular_pitch/2-clearance/2));
-        }
-        halftooth (
-			pitch_angle,
-			base_radius,
-			min_radius,
-			outer_radius,
-			half_thick_angle);		
-		}
-	}
-}
-
-module ring2D (number_of_teeth,circular_pitch,pressure_angle,depth_ratio,depth_ratio2,clearance,radius){
+module ring2D (number_of_teeth,circular_pitch,pressure_angle,depth_ratio,depth_ratio2,clearance,height=0,radius){
     pitch_radius = number_of_teeth*circular_pitch/(2*PI);
     base_radius = pitch_radius*cos(pressure_angle);
     depth=circular_pitch/(2*tan(pressure_angle));
@@ -594,61 +435,17 @@ module ring2D (number_of_teeth,circular_pitch,pressure_angle,depth_ratio,depth_r
     pitch_point = involute (base_radius, involute_intersect_angle (base_radius, pitch_radius));
     pitch_angle = atan2 (pitch_point[1], pitch_point[0]);
     min_radius = max (base_radius,root_radius);
-
-    seg(number_of_teeth)difference(){
+    seg(number_of_teeth)overhang(height)difference(){
         intersection(){
             circle(r=radius);
             mirror([0,1,0])square(radius);
             rotate(-180/number_of_teeth)translate([0,-AT,0])square(radius);
         }
         intersection(){
-            //rotate(90/number_of_teeth)
-                circle($fn=number_of_teeth*6,r=pitch_radius+depth_ratio*circular_pitch/2-clearance/2);
+            circle($fn=number_of_teeth*6,r=pitch_radius+depth_ratio*circular_pitch/2-clearance/2);
             union(){
-                //intersection(){
-                    rotate(90/number_of_teeth)
-                        circle($fn=number_of_teeth*6,r=max(root_radius,pitch_radius-depth_ratio2*circular_pitch/2-clearance/2));
-                    //mirror([0,1,0])square(max(root_radius,pitch_radius-depth_ratio*circular_pitch/2-clearance/2));
-                    //rotate(-180/number_of_teeth-1)
-                        //square(max(root_radius,pitch_radius-depth_ratio*circular_pitch/2-clearance/2));
-                //}
-                halftooth (pitch_angle,base_radius,min_radius,outer_radius,half_thick_angle);		
-            }
-        }
-    }
-}
-
-// volume supported above ring gear for removing overhang
-module ring2DS (number_of_teeth,circular_pitch,pressure_angle,depth_ratio,depth_ratio2,clearance,height,radius){
-    pitch_radius = number_of_teeth*circular_pitch/(2*PI);
-    base_radius = pitch_radius*cos(pressure_angle);
-    depth=circular_pitch/(2*tan(pressure_angle));
-    outer_radius = clearance<0 ? pitch_radius+depth/2-clearance : pitch_radius+depth/2;
-    root_radius1 = pitch_radius-depth/2-clearance/2;
-    root_radius = (clearance<0 && root_radius1<base_radius) ? base_radius : root_radius1;
-    backlash_angle = clearance/(pitch_radius*cos(pressure_angle)) * 180 / PI;
-    half_thick_angle = 90/number_of_teeth - backlash_angle/2;
-    pitch_point = involute (base_radius, involute_intersect_angle (base_radius, pitch_radius));
-    pitch_angle = atan2 (pitch_point[1], pitch_point[0]);
-    min_radius = max (base_radius,root_radius);
-
-    seg(number_of_teeth)overhang(number_of_teeth,height)difference(){
-        intersection(){
-            circle(r=radius);
-            mirror([0,1,0])square(radius);
-            rotate(-180/number_of_teeth)translate([0,-AT,0])square(radius);
-        }
-        intersection(){
-            //rotate(90/number_of_teeth)
-                circle($fn=number_of_teeth*6,r=pitch_radius+depth_ratio*circular_pitch/2-clearance/2);
-            union(){
-                //intersection(){
-                    rotate(90/number_of_teeth)
-                        circle($fn=number_of_teeth*6,r=max(root_radius,pitch_radius-depth_ratio2*circular_pitch/2-clearance/2));
-                    //mirror([0,1,0])square(max(root_radius,pitch_radius-depth_ratio*circular_pitch/2-clearance/2));
-                    //rotate(-180/number_of_teeth-1)
-                        //square(max(root_radius,pitch_radius-depth_ratio*circular_pitch/2-clearance/2));
-                //}
+                rotate(90/number_of_teeth)
+                    circle($fn=number_of_teeth*6,r=max(root_radius,pitch_radius-depth_ratio2*circular_pitch/2-clearance/2));
                 halftooth (pitch_angle,base_radius,min_radius,outer_radius,half_thick_angle);		
             }
         }
