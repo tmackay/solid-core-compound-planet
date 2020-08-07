@@ -99,7 +99,7 @@ ChamferGearsBottom = 0;				// [1:No, 0.5:Yes, 0:Half]
 //Include a knob
 Knob = 1;				// [1:Yes , 0:No]
 //Diameter of the knob, in mm
-KnobDiameter_ = 12.0;			//[10:0.5:100]
+KnobDiameter_ = 15.0;			//[10:0.5:100]
 KnobDiameter = scl*KnobDiameter_;
 //Thickness of knob, including the stem, in mm:
 KnobTotalHeight_ = 10;			//[10:thin,15:normal,30:thick, 40:very thick]
@@ -107,7 +107,7 @@ KnobTotalHeight = scl*KnobTotalHeight_;
 //Number of points on the knob
 FingerPoints = 5;   			//[3,4,5,6,7,8,9,10]
 //Diameter of finger holes
-FingerHoleDiameter_ = 5; //[5:0.5:50]
+FingerHoleDiameter_ = 6; //[5:0.5:50]
 FingerHoleDiameter = scl*FingerHoleDiameter_;
 TaperFingerPoints = true;			// true
 //Include a nut capture at the top
@@ -177,10 +177,10 @@ if(g==1||g==undef&&part=="core"){
             }
             intersection(){
                 extrudegear(t1=rt[i],gear_h=gh[i],tol=-tol,helix_angle=ha[i],cp=cp[i],AT=ST)
-                    ring2D(rt[i],s[i]*cp[i]*PI/180,(2*s[i]-1)*P,depth_ratio,depth_ratio2/(2*s[i]-1),-tol,0,outer_d/2-wall/2+tol); // depth_ratio2,P fudged to account for tooth scaling - more applicable to s[i]>1?
+                    ring2D(rt[i],s[i]*cp[i]*PI/180,acos(cos(P)/s[i]),depth_ratio,depth_ratio2/s[i],-tol,0,outer_d/2-wall/2+tol); // depth_ratio2,P fudged to account for tooth scaling - more applicable to s[i]>1?
                 // cutout overhanging teeth at angle
                 if(i>0&&rt[i-1]!=rt[i])rotate([0,0,-180/rt[i-1]*2*nt[i-1]])translate([0,0,layer_h])
-                    ring2D(rt[i-1],s[i-1]*cp[i-1]*PI/180,(2*s[i-1]-1)*P,depth_ratio,depth_ratio2/(2*s[i-1]-1),-tol,gh[i],outer_d/2-wall/2+tol);
+                    ring2D(rt[i-1],s[i-1]*cp[i-1]*PI/180,acos(cos(P)/s[i-1]),depth_ratio,depth_ratio2/s[i-1],-tol,gh[i],outer_d/2-wall/2+tol);
             }
         }
         // negative volume
@@ -325,7 +325,7 @@ if(g==undef&&part=="2D"){
     for(i=[0:1])translate([0,i*(outer_d+tol),0]){
         planets(t1=pt[i], t2=dt[i],offset=(dt[i]+pt[i])*cp[i]/360,n=planets,t=rt[i]+dt[i])
             gear2D(pt[i],cp[i]*PI/180,P,depth_ratio,depth_ratio2,tol,0);
-        ring2D(rt[i],s[i]*cp[i]*PI/180,(2*s[i]-1)*P,depth_ratio,depth_ratio2/(2*s[i]-1),-tol,0,outer_d/2-wall/2+tol); // depth_ratio2,P fudged to account for tooth scaling
+        ring2D(rt[i],s[i]*cp[i]*PI/180,acos(cos(P)/s[i]),depth_ratio,depth_ratio2/s[i],-tol,0,outer_d/2-wall/2+tol); // depth_ratio2,P fudged to account for tooth scaling - more applicable to s[i]>1?
         rotate([0,0,180/dt[i]*(1-pt[i]%2)])
             gear2D(dt[i],cp[i]*PI/180,P,depth_ratio2,depth_ratio,tol,0);
     }
