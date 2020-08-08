@@ -71,6 +71,187 @@ $fs = 1/1;
 // Curve resolution settings, number of segments
 $fn=96;
 
+/*translate([-gear_h-gear_h2/2,0,outer_d/2])mirror([1,0,0])mirror([1,0,1]){
+    jaw_rot=240;
+    elbow(arm_size=arm_size,jaws=0,jaw_rot=jaw_rot);
+    rotate([0,0,-jaw_rot])translate([2*arm_size+outer_d,0,0])mirror([1,0,0])mirror([0,1,0]){
+        jaw_rot=90;
+        elbow(arm_size=13*arm_size/8,jaws=0,jaw_rot=jaw_rot);
+        rotate([0,0,-jaw_rot])translate([2*arm_size+outer_d,0,0])mirror([1,0,0])mirror([0,1,0]){
+            jaw_rot=60;
+            elbow(arm_size=13*arm_size/8,jaws=0,jaw_rot=jaw_rot);
+            rotate([0,0,-jaw_rot])translate([2*arm_size+outer_d,0,0])mirror([1,0,0])mirror([0,1,0]){
+                jaw_rot=240;
+                elbow(arm_size=3*arm_size/8,jaws=0,jaw_rot=jaw_rot);
+                rotate([0,0,-jaw_rot])translate([arm_size+outer_d/2,0,0])mirror([1,0,0])mirror([0,1,0]){
+                    elbow(arm_size=3*arm_size/8,jaw_rot=0);
+                }
+            }
+        }
+    }
+}*/
+
+// Number of sets of jaws
+jaws = 1; //[0:1:6]
+// Jaw Initial Rotation (from closed)
+jaw_rot = 90; //[0:180]
+// Jaw Size
+jaw_size_ = 22; //[0:100]
+jaw_size = scl*jaw_size_;
+arm_size_ = 25;
+arm_size = scl*arm_size_;
+arm_width_ = 10;
+arm_width = scl*arm_width_;
+// Jaw Offset
+jaw_offset_ = 3; //[0:0.1:100]
+jaw_offset = scl*jaw_offset_;
+// Jaw Taper Angle (outside edge)
+jaw_angle = 9; //[0:60]
+// Dimple radius
+dim_r_ = 1.1; //[0:0.1:2]
+dim_r = scl*dim_r_;
+// Dimple depth ratio
+dim_d = 0.5; //[0:0.1:1]
+
+gh = scl*gh_;
+outer_d = outer_d_*scl;
+AT=AT_*scl;
+ST=AT*2;
+TT=AT/2;
+
+elbow(arm_size=arm_size,jaws=0,jaw_rot=jaw_rot);
+
+module elbow() {
+    modules = len(gh_);
+    core_h = scl*addl(gh_,len(gh_));
+    dim_n = floor(core_h/dim_r/3);
+    dim_s = core_h/(dim_n+1);
+    
+    bearing_h = scl*bearing_h_;
+    layer_h = scl*layer_h_;
+    tol = scl*tol_;
+    wall = scl*wall_;
+    
+// Jaws
+if(jaws>0)for(k=[0:jaws-1]){
+    mirror([1,0,0]){
+        for(i=[dim_s/2:dim_s:jaw_size-dim_s/2+AT]){
+            for(j=[dim_s/2:dim_s:(modules-1)*gear_h+gear_h2-dim_s/2+AT+0.01]){
+                translate([outer_d/2+jaw_size-i,jaw_offset,j])
+                    scale([1,dim_d,1])rotate([90,0,0])sphere(r=dim_r,$fn=6);
+            }
+        }
+        difference(){
+            union(){
+                rotate([0,0,180])translate([0,-arm_width/2,0])
+                    cube([outer_d/2+arm_size,arm_width,(modules-1)*gear_h+gear_h2-AT]);
+                intersection(){
+                    translate([0,jaw_offset,0])
+                        cube([outer_d/2+jaw_size,outer_d/2-jaw_offset,(modules-1)*gear_h+gear_h2-AT]);
+                    rotate([0,0,-jaw_angle])
+                        cube([outer_d/2+jaw_size,outer_d/2,(modules-1)*gear_h+gear_h2-AT]);
+                }
+            }
+            translate([0,0,-AT])
+                cylinder(r=outer_d/2-0.5,h=gear_h+ST);
+            translate([0,0,gear_h-layer_h*5-AT])
+                cylinder(r=outer_d/2+0.5,h=gear_h2+layer_h-TT+4*layer_h-AT-TT+layer_h*5+AT);
+            translate([0,0,gear_h+gear_h2+layer_h-AT])
+                cylinder(r=outer_d/2-0.5,h=gear_h+ST);
+            for(i=[dim_s:dim_s:jaw_size-dim_s]){
+                for(j=[dim_s:dim_s:(modules-1)*gear_h+gear_h2-dim_s+AT+0.01]){
+                    translate([outer_d/2+jaw_size-i,jaw_offset,j])
+                        scale([1,dim_d,1])rotate([90,0,0])sphere(r=dim_r,$fn=6);
+                }
+            }
+        }
+    }
+    rotate([0,0,jaw_rot])mirror([1,0,0])mirror([0,1,0]){
+    for(i=[dim_s:dim_s:jaw_size-dim_s]){
+        for(j=[dim_s:dim_s:(modules-1)*gear_h+gear_h2-dim_s+AT+0.01]){
+            translate([outer_d/2+jaw_size-i,jaw_offset,j])
+                scale([1,dim_d,1])rotate([90,0,0])sphere(r=dim_r,$fn=6);
+        }
+    }
+    difference(){
+        union(){
+            intersection(){
+                translate([0,jaw_offset,0])
+                    cube([outer_d/2+jaw_size,outer_d/2-jaw_offset,2*gear_h+gear_h2-AT]);
+                rotate([0,0,-jaw_angle])
+                    cube([outer_d/2+jaw_size,outer_d/2,(modules-1)*gear_h+gear_h2-AT]);
+            }
+        }
+        translate([0,0,-AT])
+            cylinder(r=outer_d/2+0.5,h=gear_h+layer_h+AT-layer_h*5);
+        translate([0,0,gear_h-layer_h*5])
+            cylinder(r=outer_d/2-0.5,h=gear_h2+layer_h-TT+layer_h*10);
+        translate([0,0,gear_h+gear_h2-TT+layer_h*4-TT])
+            cylinder(r=outer_d/2+0.5,h=gear_h+ST-layer_h*4+TT);
+        for(i=[dim_s/2:dim_s:jaw_size-dim_s/2+AT+0.01]){
+            for(j=[dim_s/2:dim_s:(modules-1)*gear_h+gear_h2-dim_s/2+AT+0.01]){
+                translate([outer_d/2+jaw_size-i,jaw_offset,j])
+                    scale([1,dim_d,1])rotate([90,0,0])sphere(r=dim_r,$fn=6);
+            }
+        }
+    }
+    }
+} else {
+    difference(){
+        translate([0,-arm_width/2,0])
+            cube([outer_d/2+arm_size/4,arm_width,core_h]);
+        //for (i=[0:modules-1])translate([0,0,addl(gh,i)+(!i||i%2?0:bearing_h-layer_h)])
+        //    cylinder(r=outer_d/2+(i%2?-2*tol:2*tol),h=gh[i]+(i%2?bearing_h-2*layer_h:-bearing_h+2*layer_h));
+        translate([0,0,addl(gh,0)-AT])
+            cylinder(r=outer_d/2+2*tol,h=gh[0]-bearing_h+2*layer_h+AT);
+        translate([0,0,addl(gh,1)-bearing_h])
+            cylinder(r=outer_d/2-2*tol,h=gh[1]+2*bearing_h);
+        translate([0,0,addl(gh,2)+bearing_h-layer_h])
+            cylinder(r=outer_d/2+2*tol,h=gh[2]+AT);
+    }
+
+    difference(){
+        hull(){
+            translate([outer_d/2+arm_size/4,-arm_width/2,0])
+                cube([arm_size/4,arm_width,core_h]);
+            translate([arm_size,0,0])rotate([45,0,0])
+                cube([arm_size/2,core_h/sqrt(2),core_h/sqrt(2)]);
+        }
+        translate([arm_size,0,wall*sqrt(2)])rotate([45,0,0])
+            cube([arm_size/2+AT,core_h/sqrt(2)-2*wall,core_h/sqrt(2)-2*wall]);
+    }
+    
+    rotate([0,0,-jaw_rot])mirror([0,1,0]){
+        difference(){
+            translate([0,-arm_width/2,0])
+                cube([outer_d/2+arm_size/4,arm_width,core_h]);
+            //for (i=[0:modules-1])translate([0,0,addl(gh,i)+(i%2?-bearing_h+layer_h:0)])
+            //    cylinder(r=outer_d/2+(i%2?2*tol:-2*tol),h=gh[i]+2*bearing_h-layer_h);
+            translate([0,0,addl(gh,0)-AT])
+                cylinder(r=outer_d/2-2*tol,h=gh[0]-bearing_h+2*layer_h+AT);
+            translate([0,0,addl(gh,1)-bearing_h+layer_h])
+                cylinder(r=outer_d/2+2*tol,h=gh[1]+2*bearing_h-layer_h);
+            translate([0,0,addl(gh,2)+bearing_h-layer_h])
+                cylinder(r=outer_d/2-2*tol,h=gh[2]+AT);
+        }
+        
+    difference(){
+        hull(){
+            translate([outer_d/2+arm_size/4,-arm_width/2,0])
+                cube([arm_size/4,arm_width,core_h]);
+            translate([arm_size,0,0])rotate([45,0,0])
+                cube([arm_size/2,core_h/sqrt(2),core_h/sqrt(2)]);
+        }
+        translate([arm_size,0,wall*sqrt(2)])rotate([45,0,0])
+            cube([arm_size/2+AT,core_h/sqrt(2)-2*wall,core_h/sqrt(2)-2*wall]);
+    }
+        
+    translate([0,arm_size,0])
+        cube([arm_size-2*tol,core_h/sqrt(2)-2*wall,core_h/sqrt(2)-2*wall]);
+
+    }
+}
+
 gearbox(
     gen = gen, scl = scl, planets = planets, layer_h_ = layer_h_, gh_ = gh_, pt = pt, of = of, nt = nt,
     sgm = sgm, outer_d_ = outer_d_, wall_ = wall_, shaft_d_ = shaft_d_, depth_ratio = depth_ratio,
@@ -79,3 +260,5 @@ gearbox(
     KnobTotalHeight_ = KnobTotalHeight_, FingerPoints = FingerPoints, FingerHoleDiameter_ = FingerHoleDiameter_,
     TaperFingerPoints = TaperFingerPoints, AT_ = AT_, $fa = $fa, $fs = $fs, $fn = $fn
 );
+
+}
