@@ -309,7 +309,10 @@ module joiner(cutout=false,indent=false){
                     square([arm_size-2*tol-2*wall,core_h/sqrt(2)-2*wall-3*layer_h],center=true);
             mirror([0,1,0])translate([0,core_h/2/sqrt(2)-2*wall-tol/2+wall+AT,core_h/2/sqrt(2)-wall-layer_h/2])
                 mirror([0,1,1])linear_extrude(core_h/2/sqrt(2)-2*wall-tol/2,scale=0)
-                    square([arm_size-2*tol-2*wall,core_h/sqrt(2)-2*wall-3*layer_h],center=true);        }     
+                    square([arm_size-2*tol-2*wall,core_h/sqrt(2)-2*wall-3*layer_h],center=true);
+            translate([0,0,core_h/sqrt(2)-2*wall-layer_h]/2)
+                mirror([1,0,1])cylinder(h=arm_size,d=wall,center=true,$fn=6);
+        }     
     }
     
     
