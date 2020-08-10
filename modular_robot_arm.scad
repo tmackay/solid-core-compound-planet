@@ -1,4 +1,4 @@
-// OpenSCAD Planetary Elbow Joint
+// OpenSCAD Modular Toy Robot Arm
 // (c) 2020, tmackay
 //
 // Licensed under a Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license, http://creativecommons.org/licenses/by-sa/4.0.
