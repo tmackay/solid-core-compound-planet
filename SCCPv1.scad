@@ -47,8 +47,6 @@ module gearbox(
     cp=(outer_d/2-1.25*wall)*360/(dt+2*pt);
     // what ring should be for teeth to mesh without additional scaling
     rtn = dt+2*pt;
-    // scale ring gear (approximate profile shift)
-    s=[for(i=[0:modules-1])rtn[i]/rt[i]];
     // scale helix angle to mesh
     ha=[for(i=[0:modules-1])atan(PI*nt[i]*cp[i]/90/gh[i])];
     shaft_d = scl*shaft_d_;
@@ -77,12 +75,12 @@ module gearbox(
     //echo(str("Input/Output gear ratio: 1:",abs((1+ring_t1/drive_t)*ring_t2/((ring_t2-planet_t2)+planet_t2*(planet_t-ring_t1)/planet_t))));
 
     // sanity check
-    for (i=[1:modules-1]){
+    for (i=[0:modules-1]){
         if ((dt[i]+rt[i])%planets)
             echo(str("Warning: For even spacing, planets (", i, ") must divide ", dt[i]+rt[i]));
         if (dt[i] + 2*pt[i] != rt[i])
             echo(str("Teeth fewer than ideal (ring", i, "): ", dt[i]+2*pt[i]-rt[i]));
-        if(i<modules-1)echo(str("Input/Output gear ratio (ring", i, "): 1:",abs((1+rt[modules-1]/dt[modules-1])*rt[i]/((rt[i]-pt[i])+pt[i]*(pt[modules-1]-rt[modules-1])/pt[modules-1]))));
+        if(i>0&&i<modules-1)echo(str("Input/Output gear ratio (ring", i, "): 1:",abs((1+rt[modules-1]/dt[modules-1])*rt[i]/((rt[i]-pt[i])+pt[i]*(pt[modules-1]-rt[modules-1])/pt[modules-1]))));
     }
     
     g=addl([for(i=[0:modules-1])(dt[i]+rt[i])%planets],modules)?99:gen;
@@ -104,10 +102,10 @@ module gearbox(
                 }
                 intersection(){
                     extrudegear(t1=rt[i],gear_h=gh[i],tol=-tol,helix_angle=ha[i],cp=cp[i],AT=ST)
-                        ring2D(rt[i],s[i]*cp[i]*PI/180,acos(cos(P)/s[i]),depth_ratio,depth_ratio2/s[i],-tol,0,outer_d/2-wall/2+tol,AT); // depth_ratio2,P fudged to account for tooth scaling - more applicable to s[i]>1?
+                        ring2D(rtn[i],rt[i],cp[i]*PI/180,P,depth_ratio,depth_ratio2,-tol,0,outer_d/2-wall/2+tol,AT);
                     // cutout overhanging teeth at angle
                     if(i>0&&rt[i-1]!=rt[i])rotate([0,0,-180/rt[i-1]*2*nt[i-1]])translate([0,0,layer_h])
-                        ring2D(rt[i-1],s[i-1]*cp[i-1]*PI/180,acos(cos(P)/s[i-1]),depth_ratio,depth_ratio2/s[i-1],-tol,gh[i],outer_d/2-wall/2+tol,AT);
+                        ring2D(rtn[i-1],rt[i-1],cp[i-1]*PI/180,P,depth_ratio,depth_ratio2,-tol,gh[i],outer_d/2-wall/2+tol,AT);
                 }
             }
             // negative volume
@@ -120,18 +118,12 @@ module gearbox(
                             [outer_d/2-wall/2+tol,bearing_h-2*layer_h],[outer_d/2+tol,bearing_h-2*layer_h]]);
                 // chamfer bottom gear
                 if(ChamferGearsBottom<1&&i==0)translate([0,0,-TT])
-                    linear_extrude(height=(rt[i]*s[i]*cp[i]/360)/sqrt(3),scale=0,slices=1)
-                        if(ChamferGearsTop>0)
-                            hull()gear2D(rt[i],s[i]*cp[i]*PI/180,P,depth_ratio,depth_ratio2,-tol,0,AT);
-                        else
-                            circle($fn=rt[i]*2,r=rt[i]*s[i]*cp[i]/360);
+                    linear_extrude(height=(rtn[i]*cp[i]/360)/sqrt(3),scale=0,slices=1)
+                        circle($fn=rt[i]*2,r=rtn[i]*cp[i]/360);
                 // chamfer top gear
                 if(ChamferGearsTop<1&&i==modules-1)translate([0,0,gh[i]+TT])mirror([0,0,1])
-                    linear_extrude(height=(rt[i]*s[i]*cp[i]/360)/sqrt(3),scale=0,slices=1)
-                        if(ChamferGearsTop>0)
-                            hull()gear2D(rt[i],s[i]*cp[i]*PI/180,P,depth_ratio,depth_ratio2,-tol,0,AT);
-                        else
-                            circle($fn=rt[i]*2,r=rt[i]*s[i]*cp[i]/360);
+                    linear_extrude(height=(rtn[i]*cp[i]/360)/sqrt(3),scale=0,slices=1)
+                        circle($fn=rt[i]*2,r=rtn[i]*cp[i]/360);
             }
         }
     }
@@ -320,7 +312,7 @@ module gear2D(number_of_teeth, circular_pitch, pressure_angle, depth_ratio, dept
 	}
 }
 
-module ring2D (number_of_teeth,circular_pitch,pressure_angle,depth_ratio,depth_ratio2,clearance,height=0,radius,AT){
+module ring2D(number_of_teeth,tooth_count,circular_pitch,pressure_angle,depth_ratio,depth_ratio2,clearance,height=0,radius,AT){
     pitch_radius = number_of_teeth*circular_pitch/(2*PI);
     base_radius = pitch_radius*cos(pressure_angle);
     depth=circular_pitch/(2*tan(pressure_angle));
@@ -332,18 +324,23 @@ module ring2D (number_of_teeth,circular_pitch,pressure_angle,depth_ratio,depth_r
     pitch_point = involute (base_radius, involute_intersect_angle (base_radius, pitch_radius));
     pitch_angle = atan2 (pitch_point[1], pitch_point[0]);
     min_radius = max (base_radius,root_radius);
-    seg(number_of_teeth)overhang(height,AT)difference(){
+    seg(tooth_count)overhang(height,AT)difference(){
         intersection(){
             circle(r=radius);
             mirror([0,1,0])square(radius);
-            rotate(-180/number_of_teeth)translate([0,-AT,0])square(radius);
+            rotate(-180/tooth_count)translate([0,-AT,0])square(radius);
         }
         intersection(){
             circle($fn=number_of_teeth*6,r=pitch_radius+depth_ratio*circular_pitch/2-clearance/2);
             union(){
                 rotate(90/number_of_teeth)
                     circle($fn=number_of_teeth*6,r=max(root_radius,pitch_radius-depth_ratio2*circular_pitch/2-clearance/2));
-                halftooth (pitch_angle,base_radius,min_radius,outer_radius,half_thick_angle);		
+                rotate(number_of_teeth>tooth_count?180/number_of_teeth-180/tooth_count:0)
+                    halftooth(pitch_angle,base_radius,min_radius,outer_radius,half_thick_angle);
+                if(number_of_teeth>tooth_count)intersection(){
+                    rotate(180/number_of_teeth-180/tooth_count)translate([0,-AT,0])square(radius);
+                    circle($fn=number_of_teeth*6,r=pitch_radius+depth_ratio*circular_pitch/2-clearance/2);
+                }
             }
         }
     }
