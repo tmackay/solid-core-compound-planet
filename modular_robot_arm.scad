@@ -153,12 +153,11 @@ if (part=="wrist"){
 }
 
 module elbow(in=true,out=true) {
-    dim_n = floor(core_h/dim_r/3);
-    dim_s = core_h/(dim_n+1);
-    for(k=[0:1])rotate([0,0,-jaw_rot*k])mirror([0,1*k,0])difference(){
+    dim_s = core_h/(floor(core_h/dim_r/3)+1);
+    for(k=[0:1])rotate([0,0,-jaw_rot*k])mirror([0,k,0])difference(){
         union(){
             if(!k||!jaws)translate([0,-arm_width/2,0])
-                cube([outer_d/2+(!k&&in||k&&out?arm_size/4:arm_size),arm_width,core_h]);
+                cube([outer_d/2+(!k&&in||k&&out&&!jaws?arm_size/4:arm_size),arm_width,core_h]);
             if(!k&&in||k&&out&&!jaws)difference(){
                 hull(){
                     translate([outer_d/2+arm_size/4,-arm_width/2,0])
@@ -170,11 +169,8 @@ module elbow(in=true,out=true) {
                     cube([arm_size/2+AT,core_h/sqrt(2)-2*wall,core_h/sqrt(2)-2*wall]);
             }
             if(jaws){
-                if(k)for(i=[dim_s:dim_s:jaw_size-dim_s],j=[dim_s:dim_s:core_h-dim_s+AT+0.01])
-                    translate([i-outer_d/2-jaw_size,jaw_offset,j])
-                        scale([1,dim_d,1])rotate([90,0,0])sphere(r=dim_r,$fn=6);
-                else for(i=[dim_s/2:dim_s:jaw_size-dim_s/2+AT],j=[dim_s/2:dim_s:core_h-dim_s/2+AT+0.01])
-                    translate([i-outer_d/2-jaw_size,jaw_offset,j])
+                for(i=[1-(1-k)/2:jaw_size/dim_s-1],j=[1-(1-k)/2:core_h/dim_s-1/2])
+                    translate([i*dim_s-outer_d/2-jaw_size,jaw_offset,j*dim_s])
                         scale([1,dim_d,1])rotate([90,0,0])sphere(r=dim_r,$fn=6);
                 mirror([1,0,0])intersection(){
                     translate([0,jaw_offset,0])
@@ -184,7 +180,7 @@ module elbow(in=true,out=true) {
                 }
             }
         }
-        //for (i=[0:modules-1])translate([0,0,addl(gh,i)+(!i||i%2?0:bearing_h-layer_h)])
+        //for (i=[0:modules-1])translate([0,0,addl(gh,i)+(!i||i%2?0:bearing_h-layer_h)]) // TODO: repetition
         //    cylinder(r=outer_d/2+(i%2?-2*tol:2*tol),h=gh[i]+(i%2?bearing_h-2*layer_h:-bearing_h+2*layer_h));
         translate([0,0,addl(gh,0)-AT])
             cylinder(r=outer_d/2+2*(1-2*k)*tol,h=gh[0]-bearing_h+2*layer_h+AT);
@@ -192,11 +188,8 @@ module elbow(in=true,out=true) {
             cylinder(r=outer_d/2-2*(1-2*k)*tol,h=gh[1]+2*bearing_h);
         translate([0,0,addl(gh,2)+bearing_h-layer_h])
             cylinder(r=outer_d/2+2*(1-2*k)*tol,h=gh[2]+AT);
-        if(jaws)if(k)for(i=[dim_s/2:dim_s:jaw_size-dim_s/2+AT+0.01],j=[dim_s/2:dim_s:core_h-dim_s/2+AT+0.01])
-            translate([i-outer_d/2-jaw_size,jaw_offset,j])
-                scale([1,dim_d,1])rotate([90,0,0])sphere(r=dim_r,$fn=6);
-        else for(i=[dim_s:dim_s:jaw_size-dim_s],j=[dim_s:dim_s:core_h-dim_s+AT+0.01])
-            translate([i-outer_d/2-jaw_size,jaw_offset,j])
+        if(jaws)for(i=[1-k/2:jaw_size/dim_s-1],j=[1-k/2:core_h/dim_s-1/2])
+            translate([i*dim_s-outer_d/2-jaw_size,jaw_offset,j*dim_s])
                 scale([1,dim_d,1])rotate([90,0,0])sphere(r=dim_r,$fn=6);
     }
     gearbox(
@@ -210,17 +203,17 @@ module elbow(in=true,out=true) {
 }
 
 module rotator(){
-    difference(){
+    for(k=[0:1])rotate([0,0,-jaw_rot*k])mirror([0,k,0])difference(){
         translate([0,-arm_width/2,0])
-            cube([outer_d/2+arm_size/4,arm_width,core_h]);
+            cube([outer_d/2+(k?1.5*wall:arm_size/4),arm_width,core_h]);
         //for (i=[0:modules-1])translate([0,0,addl(gh,i)+(!i||i%2?0:bearing_h-layer_h)])
         //    cylinder(r=outer_d/2+(i%2?-2*tol:2*tol),h=gh[i]+(i%2?bearing_h-2*layer_h:-bearing_h+2*layer_h));
         translate([0,0,addl(gh,0)-AT])
-            cylinder(r=outer_d/2+2*tol,h=gh[0]-bearing_h+2*layer_h+AT);
+            cylinder(r=outer_d/2+2*(1-2*k)*tol,h=gh[0]-bearing_h+2*layer_h+AT);
         translate([0,0,addl(gh,1)-bearing_h])
-            cylinder(r=outer_d/2-2*tol,h=gh[1]+2*bearing_h);
+            cylinder(r=outer_d/2-2*(1-2*k)*tol,h=gh[1]+2*bearing_h);
         translate([0,0,addl(gh,2)+bearing_h-layer_h])
-            cylinder(r=outer_d/2+2*tol,h=gh[2]+AT);
+            cylinder(r=outer_d/2+2*(1-2*k)*tol,h=gh[2]+AT);
     }
     difference(){
         hull(){
@@ -232,19 +225,18 @@ module rotator(){
         translate([arm_size,0,wall*sqrt(2)])rotate([45,0,0])
             cube([arm_size/2+AT,core_h/sqrt(2)-2*wall,core_h/sqrt(2)-2*wall]);
     }
-    rotate([0,0,-jaw_rot])mirror([0,1,0]){
-        difference(){
-            translate([0,-arm_width/2,0])
-                cube([outer_d/2+wall,arm_width,core_h]);
-            //for (i=[0:modules-1])translate([0,0,addl(gh,i)+(i%2?-bearing_h+layer_h:0)])
-            //    cylinder(r=outer_d/2+(i%2?2*tol:-2*tol),h=gh[i]+2*bearing_h-layer_h);
-            translate([0,0,addl(gh,0)-AT])
-                cylinder(r=outer_d/2-2*tol,h=gh[0]-bearing_h+2*layer_h+AT);
-            translate([0,0,addl(gh,1)-bearing_h+layer_h])
-                cylinder(r=outer_d/2+2*tol,h=gh[1]+2*bearing_h-layer_h);
-            translate([0,0,addl(gh,2)+bearing_h-layer_h])
-                cylinder(r=outer_d/2-2*tol,h=gh[2]+AT);
+    mirror([0,0,1])difference(){
+        hull(){
+            cylinder(d=outer_d,h=3*layer_h);
+            translate([0,0,3*layer_h+arm_size/4])rotate([0,0,45])
+                cube([core_h/sqrt(2),core_h/sqrt(2),arm_size/2],center=true);
+            rotate([0,0,-jaw_rot])mirror([0,1,0])
+                translate([0,-arm_width/2,0])
+                    cube([outer_d/2+1.5*wall,arm_width,3*layer_h]);
         }
+        translate([0,0,3*layer_h+arm_size/4])rotate([0,0,45])
+            cube([core_h/sqrt(2)-2*wall,core_h/sqrt(2)-2*wall,arm_size/2+AT],center=true);
+        translate([0,0,-AT])cylinder(d=outer_d-2*wall,h=layer_h+AT);
     }
     gearbox(
         gen = gen, scl = scl, planets = planets, layer_h_ = layer_h_, gh_ = gh_, pt = pt, of = of, nt = nt,
@@ -254,19 +246,6 @@ module rotator(){
         KnobTotalHeight_ = KnobTotalHeight_, FingerPoints = FingerPoints, FingerHoleDiameter_ = FingerHoleDiameter_,
         TaperFingerPoints = TaperFingerPoints, AT_ = AT_, $fa = $fa, $fs = $fs, $fn = $fn
     );         
-    mirror([0,0,1])difference(){
-        hull(){
-            cylinder(d=outer_d,h=3*layer_h);
-            translate([0,0,3*layer_h+arm_size/4])rotate([0,0,45])
-                cube([core_h/sqrt(2),core_h/sqrt(2),arm_size/2],center=true);
-            rotate([0,0,-jaw_rot])mirror([0,1,0])
-                translate([0,-arm_width/2,0])
-                    cube([outer_d/2+wall,arm_width,3*layer_h]);
-        }
-        translate([0,0,3*layer_h+arm_size/4])rotate([0,0,45])
-            cube([core_h/sqrt(2)-2*wall,core_h/sqrt(2)-2*wall,arm_size/2+AT],center=true);
-        translate([0,0,-AT])cylinder(d=outer_d-2*wall,h=layer_h+AT);
-    }
 }
 
 module joiner(cutout=false,indent=false){
