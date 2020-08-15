@@ -68,6 +68,14 @@ outer_t = [5,7];
 outer_w_=3; //[0:0.1:10]
 outer_w=scl*outer_w_;
 
+// Encoder symbols csv for daisy chained encoder rows
+charinput="0123456789ABCDEFEDCBA987654321"; // 30 symbols for how many turns the encoder layer makes during a complete cycle
+sym = split(",",charinput); // workaround for customizer
+// Font used for all rows
+font = "Liberation Mono:style=Bold";
+// Depth of embossed characters
+char_thickness_ = 0.5;
+char_thickness = scl*char_thickness_;
 
 // Tolerances for geometry connections.
 AT_=1/64;
@@ -98,6 +106,12 @@ tooth_overlap = 1.2; // [0:0.1:5]
 // calculate wall and teeth depth from above requirements
 t = scl*(wall_thickness+tooth_overlap+2*tol_);
 w = scl*(wall_thickness+tooth_overlap+1.5*tol_-tooth_overlap/2);
+
+// Only used for gear ratio calculations for encoder (otherwise calculated internally in gearbox();)
+dt = pt*sgm;
+rt = [for(i=[0:modules-1])round((2*dt[i]+2*pt[i])/planets+of[i])*planets-dt[i]];
+gr = [for(i=[0:modules-2])abs((1+rt[modules-1]/dt[modules-1])*rt[i]/((rt[i]-pt[i])+pt[i]*(pt[modules-1]-rt[modules-1])/pt[modules-1]))];
+echo(gr);
 
 // Box
 if(g==0||g==undef){
@@ -180,13 +194,14 @@ if(g>0&&g<99||g==undef){
                 TaperFingerPoints = TaperFingerPoints, AT_ = AT_, $fa = $fa, $fs = $fs, $fn = $fn
             );
         }
-        // negative volume
-        for (i=[0:modules-1])translate([0,0,addl(gh,i)]){
-            // encoder holes
-            if(i>0&&i<modules-1)translate([0,0,gh[i]/4])
-                rotate([90,90,180*i])translate([0,0,outer_d/2-wall/4])
-                    cylinder(d=gh[i]/4,h=wall/2);
-        }
+        // encoder (TODO: hardcoded gear ratios)
+        for (i=[1:modules-2],j=[0:len(sym[i-1])-1])
+            translate([0,0,addl(gh,i)+gh[i]/4])
+                rotate([90,0,180*i+360*gr[i-1]/gr[i]*j])translate([0,0,outer_d/2-wall/4])
+                    if(j)linear_extrude(2*char_thickness+tol)
+                        scale(min(1.25*PI*(outer_d-wall/2)/len(sym[i-1]),gh[i]/2)/10)
+                            text(sym[i-1][j],font=font,size=10,$fn=4,valign="center",halign="center");
+                    else cylinder(d=gh[i]/4,h=wall/2);
         // bottom taper
         difference(){
             translate([0,0,-AT])cylinder(r=outer_d/2+AT,h=scl+3*tol+AT);
@@ -217,6 +232,7 @@ if(g>99)difference(){
 module tri(){
     for(i=[0:3])rotate(120*i)children();
 }
+
 module cut(){
     for(i=[0:96/3-1])rotate(i*360/96)intersection(){
         translate([0,0,scl])cube([outer_d,sin(360/96)*(outer_d/2+wall)+AT,core_h-2*scl]);
@@ -224,3 +240,8 @@ module cut(){
             children();
     }
 }
+
+function substr(s,st,en,p="") = (st>=en||st>=len(s))?p:substr(s,st+1,en,str(p,s[st]));
+
+function split(h,s,p=[]) = let(x=search(h,s))x==[]?concat(p,s):
+    let(i=x[0],l=substr(s,0,i),r=substr(s,i+1,len(s)))split(h,r,concat(p,l));
