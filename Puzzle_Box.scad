@@ -11,7 +11,7 @@ include <SCCPv1.scad>
 // 2 sun gear and knob
 // 3+ planet gears
 // 100+ emboss pattern segments
-g=undef;
+g=1;
 
 // Overall scale (to avoid small numbers, internal faces or non-manifold edges)
 scl = 1000;
@@ -111,7 +111,11 @@ w = scl*(wall_thickness+tooth_overlap+1.5*tol_-tooth_overlap/2);
 dt = pt*sgm;
 rt = [for(i=[0:modules-1])round((2*dt[i]+2*pt[i])/planets+of[i])*planets-dt[i]];
 gr = [for(i=[0:modules-2])abs((1+rt[modules-1]/dt[modules-1])*rt[i]/((rt[i]-pt[i])+pt[i]*(pt[modules-1]-rt[modules-1])/pt[modules-1]))];
-echo(gr);
+
+// TODO: check and simplify - looking for lowest integer of turns when consecutive rings align at starting point
+rev = [for(i=[1:modules-2])abs(rt[i]*(rt[i-1]-pt[i-1]+pt[i-1]*(pt[modules-1]-rt[modules-1])/pt[modules-1])/(rt[i]-pt[i]+pt[i]*(pt[modules-1]-rt[modules-1])/pt[modules-1]))];
+
+for(i=[0:modules-3])if(len(sym[i])!=round(rev[i]))echo(str("Require ", rev[i], " characters for ring", i+1));
 
 // Box
 if(g==0||g==undef){
