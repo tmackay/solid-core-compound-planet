@@ -5,7 +5,7 @@
 include <SCCPv1.scad>; // https://github.com/tmackay/solid-core-compound-planet
 
 // Which one would you like to see?
-part = "wrist"; // [elbow:Elbow Joint,elbows:Double Elbow,triplet:Triple Elbow,joiner:Joiner,base:Rotating Base,grip:Grip,wrist:Wrist Grip,rotator:Rotator Joint,rotator2:Alternate Rotator]
+part = "wrist"; // [elbow:Elbow Joint,elbows:Double Elbow,triplet:Triple Elbow,joiner:Joiner,base:Rotating Base,grip:Grip,wrist:Wrist Grip,rotator:Rotator Joint,rotator2:Alternate Rotator,rotator3:Another Rotator]
 
 // Use for command line option '-Dgen=n', overrides 'part'
 // 0-7+ - generate parts individually in assembled positions. Combine with MeshLab.
@@ -140,6 +140,9 @@ if (part=="rotator")
 if (part=="rotator2")
     rotator2();
 
+if (part=="rotator3")
+    rotator3();
+
 if (part=="joiner")
     joiner();
 
@@ -272,6 +275,40 @@ module rotator2(){
         translate([0,0,addl(gh,2)+bearing_h-layer_h])
             cylinder(r=outer_d/2+2*(1-2*k)*tol,h=gh[2]+AT);
         translate([outer_d/2+2*tol,0,k?core_h-arm_size/2:-AT])mirror([1,0,-1])
+            translate([0,0,wall*sqrt(2)])rotate([45,0,0])
+                cube([arm_size/2+AT,core_h/sqrt(2)-2*wall,core_h/sqrt(2)-2*wall]);
+    }    
+    gearbox(
+        gen = gen, scl = scl, planets = planets, layer_h_ = layer_h_, gh_ = gh_, pt = pt, of = of, nt = nt,
+        sgm = sgm, outer_d_ = outer_d_, wall_ = wall_, shaft_d_ = shaft_d_, depth_ratio = depth_ratio,
+        depth_ratio2 = depth_ratio2, tol_ = tol_, P = P, bearing_h_ = bearing_h_, ChamferGearsTop = ChamferGearsTop,
+        ChamferGearsBottom = ChamferGearsBottom, Knob = Knob, KnobDiameter_ = KnobDiameter_,
+        KnobTotalHeight_ = KnobTotalHeight_, FingerPoints = FingerPoints, FingerHoleDiameter_ = FingerHoleDiameter_,
+        TaperFingerPoints = TaperFingerPoints, AT_ = AT_, $fa = $fa, $fs = $fs, $fn = $fn
+    );         
+}
+
+module rotator3(){
+    for(k=[0:1])rotate([0,0,-jaw_rot*k])mirror([0,k,0])difference(){
+        union(){
+            translate([0,-arm_width/2,0])
+                cube([outer_d/2+(k?wall:arm_size/4),arm_width,core_h]);
+            hull(){
+                translate([outer_d/2+(k?wall:arm_size/4),-arm_width/2,0])
+                    cube([k?wall/2:arm_size/4,arm_width,core_h]);
+                translate([k?outer_d/2+2*tol:arm_size,0,0])mirror([k,0,-k])rotate([45,0,0])
+                    cube([arm_size/2,core_h/sqrt(2),core_h/sqrt(2)]);
+            }
+        }
+        //for (i=[0:modules-1])translate([0,0,addl(gh,i)+(!i||i%2?0:bearing_h-layer_h)])
+        //    cylinder(r=outer_d/2+(i%2?-2*tol:2*tol),h=gh[i]+(i%2?bearing_h-2*layer_h:-bearing_h+2*layer_h));
+        translate([0,0,addl(gh,0)-AT])
+            cylinder(r=outer_d/2+2*(1-2*k)*tol,h=gh[0]-bearing_h+2*layer_h+AT);
+        translate([0,0,addl(gh,1)-bearing_h+layer_h])
+            cylinder(r=outer_d/2-2*(1-2*k)*tol,h=gh[1]+2*bearing_h-layer_h);
+        translate([0,0,addl(gh,2)+bearing_h-layer_h])
+            cylinder(r=outer_d/2+2*(1-2*k)*tol,h=gh[2]+AT);
+        translate([k?outer_d/2+2*tol:arm_size,0,k?-AT:0])mirror([k,0,-k])
             translate([0,0,wall*sqrt(2)])rotate([45,0,0])
                 cube([arm_size/2+AT,core_h/sqrt(2)-2*wall,core_h/sqrt(2)-2*wall]);
     }    
