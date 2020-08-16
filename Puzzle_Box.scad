@@ -11,7 +11,7 @@ include <SCCPv1.scad>
 // 2 sun gear and knob
 // 3+ planet gears
 // 100+ emboss pattern segments
-g=1;
+g=undef;
 
 // Overall scale (to avoid small numbers, internal faces or non-manifold edges)
 scl = 1000;
@@ -21,13 +21,13 @@ planets = 5; //[3:1:21]
 // Layer height (for ring horizontal split)
 layer_h_ = 0.2; //[0:0.01:1]
 // Height of planetary layers (layer_h will be subtracted from gears>0)
-gh_ = [7.4, 7.6, 7.6];
+gh_ = [7.4, 7.6, 7.6, 7.6];
 // Number of teeth in planet gears
-pt = [4, 5, 6];
+pt = [4, 5, 7, 6];
 // For additional gear ratios we can add or subtract extra teeth (in multiples of planets) from rings but the profile will be further from ideal
-of = [0, 0, 0];
+of = [0, 0, 0, 0];
 // number of teeth to twist across
-nt = [1, 1, 1];
+nt = [1, 1, 1, 1];
 // Sun gear multiplier
 sgm = 1; //[1:1:5]
 // Outer diameter
@@ -69,7 +69,7 @@ outer_w_=3; //[0:0.1:10]
 outer_w=scl*outer_w_;
 
 // Encoder symbols csv for daisy chained encoder rows
-charinput="0123456789ABCDEFEDCBA987654321"; // 30 symbols for how many turns the encoder layer makes during a complete cycle
+charinput="0123456789ABCDEFEDCBA987654321,0123456789ABBA987654321";
 sym = split(",",charinput); // workaround for customizer
 // Font used for all rows
 font = "Liberation Mono:style=Bold";
@@ -110,17 +110,18 @@ w = scl*(wall_thickness+tooth_overlap+1.5*tol_-tooth_overlap/2);
 // Only used for gear ratio calculations for encoder (otherwise calculated internally in gearbox();)
 dt = pt*sgm;
 rt = [for(i=[0:modules-1])round((2*dt[i]+2*pt[i])/planets+of[i])*planets-dt[i]];
-gr = [for(i=[0:modules-2])abs((1+rt[modules-1]/dt[modules-1])*rt[i]/((rt[i]-pt[i])+pt[i]*(pt[modules-1]-rt[modules-1])/pt[modules-1]))];
-
-// TODO: check and simplify - looking for lowest integer of turns when consecutive rings align at starting point
-rev = [for(i=[1:modules-2])abs(rt[i]*(rt[i-1]-pt[i-1]+pt[i-1]*(pt[modules-1]-rt[modules-1])/pt[modules-1])/(rt[i]-pt[i]+pt[i]*(pt[modules-1]-rt[modules-1])/pt[modules-1]))];
-
-for(i=[0:modules-3])if(len(sym[i])!=round(rev[i]))echo(str("Require ", rev[i], " characters for ring", i+1));
+//gr = [for(i=[0:modules-2])(dt[modules-1]+rt[modules-1])*rt[i] / abs(rt[i]*pt[modules-1]-rt[modules-1]*pt[i]) / sgm ];
+// for calculation of gr[i]/gr[i-1]
+// sgm is common across all stages and cancels, as is dt[modules-1]+rt[modules-1]
+// also planets are a factor of denominator (?)
+gd = [for(i=[0:modules-2])round(abs(rt[i]*pt[modules-1]-rt[modules-1]*pt[i])/planets)];
+for(i=[0:modules-3])echo(str(rt[i+1]*gd[i], "/", rt[i]*gd[i+1]));
+for(i=[0:modules-3])if(len(sym[i])!=rt[i+1]*gd[i])echo(str("Require ", rt[i+1]*gd[i], " characters for ring", i+1, " have ",len(sym[i])));
 
 // Box
 if(g==0||g==undef){
     difference(){
-        cylinder(d=outer_d+2*wall,h=core_h);
+        cylinder(d=outer_d+2*wall+2*char_thickness,h=core_h);
         translate([0,0,scl+3*tol-TT])cylinder(d=outer_d+4*tol,h=core_h+AT);
         // bottom taper
         translate([0,0,scl-TT])cylinder(d1=outer_d+4*tol-6*tol,d2=outer_d+4*tol,h=3*tol+AT);
@@ -135,18 +136,18 @@ if(g==0||g==undef){
             d=h/4;
             // outer teeth
             if(!i&&len(outer_t))intersection(){
-                translate([0,0,i%2?h+bearing_h-2*layer_h:h-bearing_h])rotate_extrude()
+                translate([0,0,i&&i<=modules/2?h+bearing_h-2*layer_h:h-bearing_h])rotate_extrude()
                     polygon( points=[[0,0],[r-d,0],[r,d],[r,core_h-d],[r-d,core_h],[0,core_h]] );
                 for(i = [0:len(outer_t)-1], j = [0:outer_t[i]-1])
                     mirror([i,0,0])rotate([0,0,j*360/outer_t[i]])translate([outer_d/2,0,0])rotate([0,0,45])
                         cylinder(d=outer_w+4*tol,h=core_h,$fn=4);
             }
             // track
-            translate([0,0,i%2?h+bearing_h-2*layer_h:h-bearing_h])
+            translate([0,0,i&&i<=modules/2?h+bearing_h-2*layer_h:h-bearing_h])
                 rotate_extrude()
                     polygon( points=[[0,0],[r-d,0],[r,d],[r,h-d],[r-d,h],[0,h]] );
             // peek holes
-            if(i>0)translate([0,0,gh[i]/4]){
+            if(i>0)translate([0,0,gh[i]/4+(i<=modules/2?bearing_h-2*layer_h:-bearing_h)]){
                 rotate([90,90,180*i])translate([0,0,outer_d/2])
                     cylinder(d=gh[i]/3,h=2*wall,$fn=12);
                 // decorative holes
@@ -182,7 +183,7 @@ if(g>0&&g<99||g==undef){
                 h=gh[i]/2;
                 d=h/4;
                 if(len(outer_t))intersection(){
-                    translate([0,0,i%2?h+bearing_h-2*layer_h:h-bearing_h])rotate_extrude()
+                    translate([0,0,h+(i&&i<=modules/2?bearing_h-2*layer_h:-bearing_h)])rotate_extrude()
                         polygon(points=[[outer_d/2-AT,0],[r-d,0],[r,d],[r,h-(i<modules-1?d:0)],[r-d,h],[outer_d/2-AT,h]]);
                     for(k = [0:len(outer_t)-1], j = [0:outer_t[k]-1])
                         mirror([k,0,0])rotate([0,0,j*360/outer_t[k]])translate([outer_d/2,0,0])rotate([0,0,45])
@@ -198,12 +199,12 @@ if(g>0&&g<99||g==undef){
                 TaperFingerPoints = TaperFingerPoints, AT_ = AT_, $fa = $fa, $fs = $fs, $fn = $fn
             );
         }
-        // encoder (TODO: hardcoded gear ratios)
+        // encoder (TODO: hardcoded gear ratios) need to divide by gcd
         for (i=[1:modules-2],j=[0:len(sym[i-1])-1])
-            translate([0,0,addl(gh,i)+gh[i]/4])
-                rotate([90,0,180*i+360*gr[i-1]/gr[i]*j])translate([0,0,outer_d/2-wall/4])
+            translate([0,0,addl(gh,i)+gh[i]/4+(i&&i<=modules/2?bearing_h-2*layer_h:-bearing_h)])
+                rotate([90,0,i*180+j*360*rt[i-1]/gd[i-1]*gd[i]/rt[i]])translate([0,0,outer_d/2-wall/4])
                     if(j)linear_extrude(2*char_thickness+tol)
-                        scale(min(1.25*PI*(outer_d-wall/2)/len(sym[i-1]),gh[i]/2)/10)
+                        scale(min(1.5*PI*(outer_d-wall/2)/len(sym[i-1]),gh[i]/3)/10)
                             text(sym[i-1][j],font=font,size=10,$fn=4,valign="center",halign="center");
                     else cylinder(d=gh[i]/4,h=wall/2);
         // bottom taper
@@ -214,7 +215,6 @@ if(g>0&&g<99||g==undef){
         }
         translate([(outer_d-wall)/2+tol-4.5*tol,0,-wall/4])
             cylinder(d=gh[0]/4,h=wall/2);
-        
     }
 }
 
@@ -222,14 +222,14 @@ if(g>0&&g<99||g==undef){
 // Pattern, simplify to 20k faces in MeshLab - Total rendering time: 0 hours, 4 minutes, 50 seconds
 if(g==99)mirror([1,0,-1]){
     mirror([0,0,1])
-        scale([((outer_d/2+wall)*sin(360/96)*96/3+AT)/249,((outer_d/2+wall)*sin(360/96)*96/3+AT)/249,core_h/10000])
+        scale([((outer_d/2+wall+char_thickness)*sin(360/96)*96/3+AT)/249,((outer_d/2+wall+char_thickness)*sin(360/96)*96/3+AT)/249,char_thickness/100])
             surface(file="pattern.png");
-    cube([(outer_d/2+wall)*sin(360/96)*96/3+AT,(outer_d/2+wall)*sin(360/96)*96/3+AT,wall]);
+    cube([(outer_d/2+wall+char_thickness)*sin(360/96)*96/3+AT,(outer_d/2+wall+char_thickness)*sin(360/96)*96/3+AT,wall]);
 }
 
 // Test Cylinder - Total rendering time: 0 hours, 18 minutes, 3 seconds
 if(g>99)difference(){
-    cylinder(r=outer_d/2+wall,h=core_h);
+    cylinder(r=outer_d/2+wall+char_thickness,h=core_h);
     tri()cut()import("pattern.stl");
 }
 
@@ -239,8 +239,8 @@ module tri(){
 
 module cut(){
     for(i=[0:96/3-1])rotate(i*360/96)intersection(){
-        translate([0,0,scl])cube([outer_d,sin(360/96)*(outer_d/2+wall)+AT,core_h-2*scl]);
-        translate([outer_d/2+wall,0,0])rotate(180/96)translate([0,-i*sin(360/96)*(outer_d/2+wall),0])
+        translate([0,0,scl])cube([outer_d,sin(360/96)*(outer_d/2+wall+char_thickness)+AT,core_h-2*scl]);
+        translate([outer_d/2+wall+char_thickness,0,0])rotate(180/96)translate([0,-i*sin(360/96)*(outer_d/2+wall+char_thickness),0])
             children();
     }
 }
@@ -249,3 +249,5 @@ function substr(s,st,en,p="") = (st>=en||st>=len(s))?p:substr(s,st+1,en,str(p,s[
 
 function split(h,s,p=[]) = let(x=search(h,s))x==[]?concat(p,s):
     let(i=x[0],l=substr(s,0,i),r=substr(s,i+1,len(s)))split(h,r,concat(p,l));
+
+function gcd(a,b)=b==0?a:gcd(b,a%b); // not used, but might be required for some gear combinations

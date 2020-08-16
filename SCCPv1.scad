@@ -80,7 +80,7 @@ module gearbox(
             echo(str("Warning: For even spacing, planets (", i, ") must divide ", dt[i]+rt[i]));
         if (dt[i] + 2*pt[i] != rt[i])
             echo(str("Teeth fewer than ideal (ring", i, "): ", dt[i]+2*pt[i]-rt[i]));
-        if(i>0&&i<modules-1)echo(str("Input/Output gear ratio (ring", i, "): 1:",abs((1+rt[modules-1]/dt[modules-1])*rt[i]/((rt[i]-pt[i])+pt[i]*(pt[modules-1]-rt[modules-1])/pt[modules-1]))));
+        if(i<modules-1)echo(str("Input/Output gear ratio (ring", i, "): 1:",abs((1+rt[modules-1]/dt[modules-1])*rt[i]/((rt[i]-pt[i])+pt[i]*(pt[modules-1]-rt[modules-1])/pt[modules-1]))));
     }
     
     g=addl([for(i=[0:modules-1])(dt[i]+rt[i])%planets],modules)?99:gen;
@@ -112,7 +112,7 @@ module gearbox(
             for (i=[0:modules-1])translate([0,0,addl(gh,i)]){
                 // bearing surface
                 if(i>0&&(pt[i-1]-rt[i-1])/pt[i-1]!=(pt[i]-rt[i])/pt[i])
-                    rotate_extrude()translate([0,(i%2?0:layer_h),0])mirror([0,i%2?1:0,0])
+                    rotate_extrude()translate([0,(i<modules/2?0:layer_h),0])mirror([0,i<modules/2?1:0,0])
                         polygon(points=[[outer_d/2+tol,bearing_h-layer_h],[outer_d/2-wall/2-tol,bearing_h-layer_h],
                             [outer_d/2-wall/2-tol,-layer_h],[outer_d/2-wall/2+tol,-layer_h],
                             [outer_d/2-wall/2+tol,bearing_h-2*layer_h],[outer_d/2+tol,bearing_h-2*layer_h]]);
