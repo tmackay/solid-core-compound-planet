@@ -33,9 +33,11 @@ gh = scl*gh_;
 modules = len(gh); //[2:1:3]
 
 // Number of teeth in planet gears
-pt = [5, 6, 7, 7, 7, 7];
+pt = [5, 5, 5, 7, 6, 4];
+//pt = [5, 5, 5, 5, 6, 4];
+
 // For additional gear ratios we can add or subtract extra teeth (in multiples of planets) from rings but the profile will be further from ideal
-of = [0, 0, 1, 0, 0, 0];
+of =0*pt ;
 // number of teeth to twist across
 nt = pt/pt[0];
 // Sun gear multiplier
@@ -127,19 +129,19 @@ $fn=96;
 // Final gear ratio is product of above, eg. 1:1298.18..
 //echo(str("Input/Output gear ratio: 1:",abs((1+ring_t1/drive_t)*ring_t2/((ring_t2-planet_t2)+planet_t2*(planet_t-ring_t1)/planet_t))));
 
-// sanity check
+// sanity check - relative to bottom gear(s)
 for (i=[0:modules-1]){
     if ((dt[i]+rt[i])%planets)
         echo(str("Warning: For even spacing, planets (", i, ") must divide ", dt[i]+rt[i]));
     if (dt[i] + 2*pt[i] != rt[i])
         echo(str("Teeth fewer than ideal (ring", i, "): ", dt[i]+2*pt[i]-rt[i]));
-    if(i<modules-1)echo(str("Input/Output gear ratio (ring", i, "): 1:",abs((1+rt[modules-1]/dt[modules-1])*rt[i]/((rt[i]-pt[i])+pt[i]*(pt[modules-1]-rt[modules-1])/pt[modules-1]))));
-    if(i<modules-1)echo(str("Input/Output gear ratio (ring", i, "): 1:","(1+",rt[modules-1],"/",dt[modules-1],")*",rt[i],"/(",(rt[i]-pt[i]),pt[i]*(pt[modules-1]-rt[modules-1]),"/",pt[modules-1],")"));
+    if(i>0)echo(str("Input/Output gear ratio (ring", i, "): 1:",abs((1+rt[0]/dt[0])*rt[i]/((rt[i]-pt[i])+pt[i]*(pt[0]-rt[0])/pt[0]))));
+    //if(i>0)echo(str("Input/Output gear ratio (ring", i, "): 1:","(1+",rt[0],"/",dt[0],")*",rt[i],"/(",(rt[i]-pt[i]),pt[i]*(pt[0]-rt[0]),"/",pt[0],")"));
 }
 
-// if(pt[modules-1]*(rt[i]-pt[i]) != pt[i]*(rt[modules-1]-pt[modules-1]))
-// find the first inf gear ratio (midpoint)
-mid = search(0,[for (i=[0:modules-1]) pt[modules-1]*(rt[i]-pt[i])-pt[i]*(rt[modules-1]-pt[modules-1])])[0];
+// find first rotating ring
+mid = search(1,[for (i=[0:modules-1]) pt[0]*(rt[i]-pt[i]) == pt[i]*(rt[0]-pt[0])?0:1])[0];
+echo(str("mid: ",mid));
 
 g=addl([for(i=[0:modules-1])(dt[i]+rt[i])%planets],modules)?99:gen;
 
@@ -258,7 +260,7 @@ module lamenthalf(turns=false){
                 [r-d-2*tol,h-1*scl],[r-2.5*d-2*tol,h-1.5*d],[r-2.5*d-2*tol,2*d],[r-2*tol,1*scl],[r-2*tol,-AT]]);
 
         // vertical tracks and teeth gates
-        translate([0,0,core_h2-cube_w/2+(turns?addl(gh,modules-mid-1)+gh[mid]/2:0)])intersection(){
+        translate([0,0,core_h2-cube_w/2+(turns?addl(gh,mid-1)+gh[mid-1]/2:0)])intersection(){
             r=(outer_d+outer_w/sqrt(2))/2+2*tol;
             r1=outer_d/2+2*tol;
             h=turns?core_h+core_h2:gh[0]/2+gh[1]+gh[2]+core_h/2+core_h2; // TODO: module dependant
@@ -276,7 +278,7 @@ module lamenthalf(turns=false){
         }
 
         // locking tracks - TODO: asymetrical teeth
-        for (i=[(turns?mid:0):(turns?modules-1:mid-1)])translate([0,0,addl(gh,i)-cube_w/2+core_h2]){
+        for (i=[(turns?mid:0):(turns?modules-1:modules-mid-1)])translate([0,0,addl(gh,i)-cube_w/2+core_h2]){
             r=(outer_d+outer_w/sqrt(2))/2+2*tol;
             r1=outer_d/2+2*tol;
             h=gh[i]/2;
@@ -320,32 +322,31 @@ module lamenthalf(turns=false){
 }
 
 // Core
-if(g==1||g==undef&&part=="core")mirror([1,0,0])mirror([0,0,1])translate([0,0,core_h2-cube_w/2]){
+if(g==1||g==undef&&part=="core")translate([0,0,core_h2-cube_w/2]){
     difference(){
         // positive volume
         union(){
-            for (i=[0:modules-2])if(!i||pt[modules-1]*(rt[i-1]-pt[i-1]) != pt[i-1]*(rt[modules-1]-pt[modules-1]))translate([0,0,addl(gh,i)]){
+            for (i=[mid-1:modules-1])translate([0,0,addl(gh,i)+gh[i]/2]){
                 // outer teeth
                 r=(outer_d+outer_w/sqrt(2))/2;
                 r1=outer_d/2;
                 h=gh[i]/2;
                 d=teeth_a*outer_w;
                 dz=d/sqrt(3);
-                for(j = [1:16])
-                    translate([0,0,i>0?layer_h:0])rotate_extrude() // TODO: translate?
-                        polygon(points=[[r1-AT,0],[r1,0],[r1+d,dz],[r1+d,h-dz],[r1,h],[r1-AT,h]]);
+                for(j = [1:16])rotate_extrude()
+                    polygon(points=[[r1-AT,0],[r1,0],[r1+d,dz],[r1+d,h-dz],[r1,h],[r1-AT,h]]);
             }
             difference(){
                 cylinder(r=outer_d/2,h=core_h);
                 cylinder(r=outer_d/2-teeth_a*outer_w-AT,h=core_h);
-                for (i=[0:modules-2])if(pt[modules-1]*(rt[i]-pt[i]) != pt[i]*(rt[modules-1]-pt[modules-1]))
-                    translate([0,0,addl(gh,i+1)+layer_h-bearing_h]){
+                for (i=[mid:modules-1])
+                    translate([0,0,addl(gh,i)-layer_h+bearing_h]){
                         translate(-outer_d*[1,1,0])cube([2*outer_d,2*outer_d,layer_h]);
                     }
             }
             if(draft)cylinder(r=outer_d/2-teeth_a*outer_w,h=core_h);
-            else translate([0,0,core_h])mirror([0,0,1])gearbox( // TODO: upside-down-upside-down
-                gen = gen, scl = scl, planets = planets, layer_h_ = layer_h_, gh_ = gh_, pt = reverse(pt), of = reverse(of), nt = reverse(nt),
+            else gearbox(
+                gen = gen, scl = scl, planets = planets, layer_h_ = layer_h_, gh_ = gh_, pt = pt, of = of, nt = nt,
                 sgm = sgm, outer_d_ = outer_d_-2*teeth_a*outer_w_, wall_ = wall_, shaft_d_ = shaft_d_, depth_ratio = depth_ratio,
                 depth_ratio2 = depth_ratio2, tol_ = tol_, P = P, bearing_h_ = bearing_h_, ChamferGearsTop = ChamferGearsTop,
                 ChamferGearsBottom = ChamferGearsBottom, Knob = 0, KnobDiameter_ = 0,
@@ -359,18 +360,20 @@ if(g==1||g==undef&&part=="core")mirror([1,0,0])mirror([0,0,1])translate([0,0,cor
             r=(outer_d+outer_w/sqrt(2))/2;
             r1=outer_d/2;
             h=gh[mid]/2;
-            h1=addl(gh,mid)-bearing_h+layer_h;
-            h2=addl(gh,mid+2);
+            h1=gh[mid]+gh[mid-1]+bearing_h;
+            h2=core_h-addl(gh,mid-2)+AT;
             d=teeth_a*outer_w;
             dz=d/sqrt(3);
-            translate([0,0,addl(gh,mid+1)])translate([0,0,gh[mid+1]/2])rotate_extrude()
-                polygon(points=[[r1+AT,0],[r1,0],[r1-d,dz],[r1-d,h-dz],[r1,h],[r1+AT,h]]);
-            for(j = [1:16])intersection(){
-                    rotate(j*360/16+asin(tol/r1))cube([r1+d+AT,r1+d+AT,h2]);
-                    rotate(90-360/32+j*360/16-asin(tol/r1))cube([r1+d+AT,r1+d+AT,h2]);
-                    rotate_extrude()
-                        polygon(points=[[r1+d+AT,-AT],[r1-d,-AT],[r1-d,h1],[r1-d*(j%2),h1],[r1-d*(j%2),h2-dz],[r1,h2],[r1+d+AT,h2]]);
+            translate([0,0,addl(gh,mid-2)]){
+                rotate_extrude()
+                    polygon(points=[[r1+AT,0],[r1,0],[r1-d,dz],[r1-d,h-dz],[r1,h],[r1+AT,h]]);
+                for(j = [1:16])intersection(){
+                        rotate(j*360/16+asin(tol/r1)+360/32)cube([r1+d+AT,r1+d+AT,h2]);
+                        rotate(90-360/32+j*360/16-asin(tol/r1)+360/32)cube([r1+d+AT,r1+d+AT,h2]);
+                        rotate_extrude()
+                            polygon(points=[[r1+d+AT,0],[r1,0],[r1-d*(j%2),dz],[r1-d*(j%2),h1],[r1-d,h1],[r1-d,h2],[r1+d+AT,h2]]);
                 }
+            }
         }
 
         translate([0,0,-spring_d/2])cylinder(d=shaft_d,h=core_h/2,$fn=24);
@@ -458,6 +461,3 @@ if(g==1||g==undef&&part=="core")mirror([1,0,0])mirror([0,0,1])translate([0,0,cor
         }
     }
 }
-
-// TODO: tidy this up
-function reverse(list) = [for (i = [len(list)-1:-1:0]) list[i]];
